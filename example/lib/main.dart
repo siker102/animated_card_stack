@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-
-import 'animated_card_stack.dart';
+import 'package:animated_card_stack/animated_card_stack.dart';
 
 void main() {
   runApp(const MainApp());

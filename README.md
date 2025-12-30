@@ -2,6 +2,42 @@
 
 A high-performance, interactive Flutter widget that renders a stack of cards with physics-based drag-and-rebound animations. Perfect for dating apps, flashcards, or any content requiring a fun, tactile way to cycle through items.
 
+## Installation
+
+Add this package to your `pubspec.yaml`:
+
+```yaml
+dependencies:
+  animated_card_stack: ^0.1.0
+```
+
+## Usage
+
+Import the package:
+
+```dart
+import 'package:animated_card_stack/animated_card_stack.dart';
+```
+
+Use the `AnimatedCardStack` widget:
+
+```dart
+AnimatedCardStack<String>(
+  items: ['Card 1', 'Card 2', 'Card 3'],
+  itemBuilder: (context, item) {
+    return Container(
+      color: Colors.blue,
+      child: Center(child: Text(item)),
+    );
+  },
+  onCardChanged: (index, item) {
+    print('Now showing: $item');
+  },
+)
+```
+
+See the `example/` directory for a complete demo app.
+
 ## Features
 
 *   **Smooth Animations**: Physics-based drag callbacks and "rebound" effects.

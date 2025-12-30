@@ -1,7 +1,8 @@
 name: animated_card_stack
-description: "A new Flutter project."
-publish_to: 'none'
+description: "A highly customizable Flutter widget that renders an interactive, animated stack of cards. Features smooth swipe-to-cycle animations and flexible builders."
 version: 0.1.0
+repository: https://github.com/siker102/animated_card_stack
+homepage: https://github.com/siker102/animated_card_stack
 
 environment:
   sdk: ^3.8.1
@@ -19,5 +20,4 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-dependency_overrides:
-  vector_math: ^2.2.0
+

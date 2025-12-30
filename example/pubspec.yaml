@@ -1,0 +1,16 @@
+name: example
+description: A demo of the animated_card_stack package.
+version: 1.0.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  animated_card_stack:
+    path: ../
+
+flutter:
+  uses-material-design: true
