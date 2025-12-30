@@ -2,6 +2,39 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+/// Holds the state of a single "detached" card animation.
+///
+/// When a card is thrown, it becomes an ActiveAnimation that runs independently
+/// of the main stack, allowing the next card to be immediately interactive.
+class ActiveAnimation<T> {
+  final AnimationController controller;
+  final Animation<Offset> position;
+  final Animation<double> rotation;
+  final Animation<double>? scale;
+  final T item;
+  final int itemIndex;
+
+  /// Whether this animation is in the rebound phase (card should render behind stack).
+  bool isRebounding;
+
+  /// Animation progress threshold where rebound phase begins (after throw + exit).
+  static const double reboundPhaseStart = 0.55; // 30% + 25% = 55%
+
+  ActiveAnimation({
+    required this.controller,
+    required this.position,
+    required this.rotation,
+    this.scale,
+    required this.item,
+    required this.itemIndex,
+    this.isRebounding = false,
+  });
+
+  void dispose() {
+    controller.dispose();
+  }
+}
+
 /// A generic animated card stack widget that displays items in a draggable stack.
 ///
 /// When the top card is dragged past the [dragThreshold] and released,
@@ -68,29 +101,14 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
   /// Velocity when the drag ended.
   Velocity _dragVelocity = Velocity.zero;
 
-  /// Animation controller for the throw + rebound sequence.
-  late AnimationController _animationController;
+  /// List of active animations (cards that are currently animating independently).
+  final List<ActiveAnimation<T>> _activeAnimations = [];
 
-  /// Animation for position during throw/rebound.
-  Animation<Offset>? _positionAnimation;
-
-  /// Animation for rotation during rebound.
-  Animation<double>? _rotationAnimation;
-
-  /// Animation for scale during rebound (shrinks card so edges don't stick out).
-  Animation<double>? _scaleAnimation;
-
-  /// Whether the card is currently animating through the cycle.
-  bool _isAnimating = false;
-
-  /// Whether we're in the rebound phase (card should render behind stack).
-  bool _isInReboundPhase = false;
-
-  /// Animation progress threshold where rebound phase begins (after throw + exit).
-  static const double _reboundPhaseStart = 0.55; // 30% + 25% = 55%
-
-  /// Whether this is a cycle animation (vs snap-back).
-  bool _isCycleAnimation = false;
+  /// Animation controller for snap-back only.
+  AnimationController? _snapBackController;
+  Animation<Offset>? _snapBackPositionAnimation;
+  Animation<double>? _snapBackRotationAnimation;
+  bool _isSnappingBack = false;
 
   /// Pool of distinct rotations to ensure cards look different.
   /// Values in radians, roughly -5° to +5°.
@@ -121,21 +139,6 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
   void initState() {
     super.initState();
     _initializeItemOrder();
-    _animationController = AnimationController(vsync: this, duration: widget.animationDuration);
-    _animationController.addStatusListener(_onAnimationStatusChanged);
-    _animationController.addListener(_checkReboundPhase);
-  }
-
-  /// Check if we've entered the rebound phase and update z-order accordingly.
-  void _checkReboundPhase() {
-    if (_isAnimating && _isCycleAnimation) {
-      final shouldBeInRebound = _animationController.value >= _reboundPhaseStart;
-      if (shouldBeInRebound != _isInReboundPhase) {
-        setState(() {
-          _isInReboundPhase = shouldBeInRebound;
-        });
-      }
-    }
   }
 
   void _initializeItemOrder() {
@@ -177,14 +180,14 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     if (widget.items.length != oldWidget.items.length) {
       _initializeItemOrder();
     }
-    if (widget.animationDuration != oldWidget.animationDuration) {
-      _animationController.duration = widget.animationDuration;
-    }
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _snapBackController?.dispose();
+    for (final anim in _activeAnimations) {
+      anim.dispose();
+    }
     super.dispose();
   }
 
@@ -199,17 +202,12 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
   }
 
   void _onPanStart(DragStartDetails details) {
-    if (_isAnimating) {
-      // If we are in the rebound phase (sliding back), allow the user to interrupt
-      // and immediately grab the next card. The old card snaps to its final position.
-      if (_isInReboundPhase) {
-        _animationController.stop();
-        _onAnimationStatusChanged(AnimationStatus.completed);
-        // Fall through to process the new drag start
-      } else {
-        // If we are in the throw phase (fly out), do not interrupt
-        return;
-      }
+    // If we're snapping back, cancel it and allow new drag
+    if (_isSnappingBack) {
+      _snapBackController?.stop();
+      _isSnappingBack = false;
+      _snapBackPositionAnimation = null;
+      _snapBackRotationAnimation = null;
     }
 
     setState(() {
@@ -218,14 +216,14 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
-    if (_isAnimating) return;
+    if (_isSnappingBack) return;
     setState(() {
       _dragOffset += details.delta;
     });
   }
 
   void _onPanEnd(DragEndDetails details) {
-    if (_isAnimating) return;
+    if (_isSnappingBack) return;
 
     _dragVelocity = details.velocity;
     final dragDistance = _dragOffset.distance;
@@ -242,48 +240,59 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
   }
 
   void _snapBack() {
-    setState(() {
-      _isAnimating = true;
-    });
-
     // Get the top card's actual resting position and rotation
     final topItemIndex = _itemOrder[0];
     final cardOffset = _getItemOffset(topItemIndex);
     final cardRotation = _getItemRotation(topItemIndex);
 
+    // Create or reuse snap-back controller
+    _snapBackController?.dispose();
+    _snapBackController = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+
     // Current position is cardOffset + dragOffset, animate back to cardOffset
     final currentPosition = cardOffset + _dragOffset;
-    _positionAnimation = _animationController.drive(
+    _snapBackPositionAnimation = _snapBackController!.drive(
       Tween<Offset>(begin: currentPosition, end: cardOffset).chain(CurveTween(curve: Curves.easeOutBack)),
     );
 
     // Animate rotation back to base rotation
     final currentRotation = cardRotation + (_dragOffset.dx / 500).clamp(-0.15, 0.15);
-    _rotationAnimation = _animationController.drive(
+    _snapBackRotationAnimation = _snapBackController!.drive(
       Tween<double>(begin: currentRotation, end: cardRotation).chain(CurveTween(curve: Curves.easeOutBack)),
     );
 
-    _isCycleAnimation = false;
-    _scaleAnimation = null;
+    _isSnappingBack = true;
+    _snapBackController!.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        setState(() {
+          _isSnappingBack = false;
+          _dragOffset = Offset.zero;
+          _snapBackPositionAnimation = null;
+          _snapBackRotationAnimation = null;
+        });
+      }
+    });
 
-    _animationController.duration = const Duration(milliseconds: 300);
-    _animationController.forward(from: 0);
+    _snapBackController!.forward(from: 0);
+    setState(() {}); // Trigger rebuild to start animation
   }
 
   void _startCycleAnimation() {
-    setState(() {
-      _isAnimating = true;
-      _isCycleAnimation = true;
-    });
+    // Capture current visual state BEFORE modifying anything
+    final topItemIndex = _itemOrder[0];
+    final topItem = widget.items[topItemIndex];
+    final cardOffset = _getItemOffset(topItemIndex);
+    final cardRotation = _getItemRotation(topItemIndex);
+
+    // Current visual position/rotation (exactly where the user's finger left off)
+    final startPosition = cardOffset + _dragOffset;
+    final startRotation = cardRotation + (_dragOffset.dx / 500).clamp(-0.15, 0.15);
+
+    // Create a new animation controller for this card
+    final controller = AnimationController(vsync: this, duration: widget.animationDuration * 2);
 
     // Calculate throw target (continue in drag direction with momentum)
-    final velocityFactor = 0.15;
-    // Calculate throw target and exit point
-    // We must include cardOffset in all calculations because the visual position
-    // includes it (position = cardOffset + dragOffset).
-    final topItemIndex = _itemOrder[0];
-    final cardOffset = _getItemOffset(topItemIndex);
-
+    const velocityFactor = 0.15;
     final throwTarget =
         _dragOffset +
         Offset(_dragVelocity.pixelsPerSecond.dx * velocityFactor, _dragVelocity.pixelsPerSecond.dy * velocityFactor);
@@ -297,11 +306,11 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     final exitTarget = exitDirection * 500;
 
     // Build animation sequence with cardOffset added to all points
-    _positionAnimation = TweenSequence<Offset>([
+    final positionAnimation = TweenSequence<Offset>([
       // Phase 1: Throw with momentum (decelerate)
       TweenSequenceItem(
         tween: Tween<Offset>(
-          begin: cardOffset + _dragOffset,
+          begin: startPosition,
           end: cardOffset + throwTarget,
         ).chain(CurveTween(curve: Curves.decelerate)),
         weight: 30,
@@ -322,74 +331,89 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
         ).chain(CurveTween(curve: Curves.easeOutCubic)),
         weight: 45,
       ),
-    ]).animate(_animationController);
+    ]).animate(controller);
 
     // Rotation during throw - start from current visual rotation
-    final cardRotation = _getItemRotation(topItemIndex);
-    // Use same calculation as _buildCard for consistency (divisor 500, clamp -0.15 to 0.15)
-    final currentRotation = cardRotation + (_dragOffset.dx / 500).clamp(-0.15, 0.15);
-
-    // Additional rotation during throw is proportional to velocity (smooth when velocity is 0)
     final velocityMagnitude = _dragVelocity.pixelsPerSecond.distance;
     final additionalRotation = (velocityMagnitude / 5000).clamp(0.0, 0.1);
 
-    _rotationAnimation = TweenSequence<double>([
+    final rotationAnimation = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: currentRotation, end: currentRotation + additionalRotation),
+        tween: Tween<double>(begin: startRotation, end: startRotation + additionalRotation),
         weight: 30,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: currentRotation + additionalRotation, end: cardRotation),
+        tween: Tween<double>(begin: startRotation + additionalRotation, end: cardRotation),
         weight: 25,
       ),
       TweenSequenceItem(
         tween: Tween<double>(begin: cardRotation, end: cardRotation),
         weight: 45,
       ),
-    ]).animate(_animationController);
+    ]).animate(controller);
 
     // Scale animation: stay at 1.0 during throw/exit, shrink during rebound
-    _scaleAnimation = TweenSequence<double>([
+    final scaleAnimation = TweenSequence<double>([
       TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.0), weight: 30),
       TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.0), weight: 25),
       TweenSequenceItem(
         tween: Tween<double>(begin: 1.0, end: widget.reboundScale).chain(CurveTween(curve: Curves.easeInOut)),
         weight: 45,
       ),
-    ]).animate(_animationController);
+    ]).animate(controller);
 
-    _animationController.duration = widget.animationDuration * 2;
-    _animationController.forward(from: 0);
-  }
+    // Create the active animation
+    final activeAnimation = ActiveAnimation<T>(
+      controller: controller,
+      position: positionAnimation,
+      rotation: rotationAnimation,
+      scale: scaleAnimation,
+      item: topItem,
+      itemIndex: topItemIndex,
+      isRebounding: false,
+    );
 
-  void _onAnimationStatusChanged(AnimationStatus status) {
-    if (status == AnimationStatus.completed) {
-      setState(() {
-        // If this was a cycle animation (not snap back), move top card to bottom
-        if (_isCycleAnimation) {
-          final topCard = _itemOrder.removeAt(0);
-          _itemOrder.add(topCard);
+    // Add listener to check for rebound phase and cleanup on completion
+    controller.addListener(() {
+      final shouldBeInRebound = controller.value >= ActiveAnimation.reboundPhaseStart;
+      if (shouldBeInRebound != activeAnimation.isRebounding) {
+        setState(() {
+          activeAnimation.isRebounding = shouldBeInRebound;
+        });
+      }
+    });
 
-          // The new bottom card (next to become visible) should inherit
-          // the new top card's rotation for smooth entry
-          final visibleCount = widget.visibleCardCount.clamp(0, widget.items.length);
-          if (visibleCount > 0 && _itemOrder.length > visibleCount - 1) {
-            final newBottomItemIndex = _itemOrder[visibleCount - 1];
-            final newTopItemIndex = _itemOrder[0];
-            // New bottom card gets the same rotation/offset as the new top card
-            _itemRotations[newBottomItemIndex] = _getItemRotation(newTopItemIndex);
-            _itemOffsets[newBottomItemIndex] = _getItemOffset(newTopItemIndex);
-          }
-        }
-        _dragOffset = Offset.zero;
-        _isAnimating = false;
-        _isInReboundPhase = false;
-        _isCycleAnimation = false;
-        _positionAnimation = null;
-        _rotationAnimation = null;
-        _scaleAnimation = null;
-      });
+    controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        setState(() {
+          _activeAnimations.remove(activeAnimation);
+          activeAnimation.dispose();
+        });
+      }
+    });
+
+    // IMMEDIATELY update item order - move the animating item to the bottom
+    final topCard = _itemOrder.removeAt(0);
+    _itemOrder.add(topCard);
+
+    // The new bottom card (next to become visible) should inherit
+    // the new top card's rotation for smooth entry
+    final visibleCount = widget.visibleCardCount.clamp(0, widget.items.length);
+    if (visibleCount > 0 && _itemOrder.length > visibleCount - 1) {
+      final newBottomItemIndex = _itemOrder[visibleCount - 1];
+      final newTopItemIndex = _itemOrder[0];
+      _itemRotations[newBottomItemIndex] = _getItemRotation(newTopItemIndex);
+      _itemOffsets[newBottomItemIndex] = _getItemOffset(newTopItemIndex);
     }
+
+    // IMMEDIATELY reset drag offset so the new top card is ready
+    _dragOffset = Offset.zero;
+
+    // Add to active animations and start
+    _activeAnimations.add(activeAnimation);
+    controller.forward(from: 0);
+
+    setState(() {}); // Trigger rebuild
   }
 
   @override
@@ -402,7 +426,10 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
       width: widget.cardWidth + 40,
       height: widget.cardHeight + 40,
       child: AnimatedBuilder(
-        animation: _animationController,
+        animation: Listenable.merge([
+          if (_snapBackController != null) _snapBackController!,
+          ..._activeAnimations.map((a) => a.controller),
+        ]),
         builder: (context, child) {
           return Stack(alignment: Alignment.center, clipBehavior: Clip.none, children: _buildCards());
         },
@@ -414,29 +441,63 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     final cards = <Widget>[];
     final visibleCount = min(widget.visibleCardCount, widget.items.length);
 
-    // During rebound phase, the animating card should be at the BOTTOM (rendered first)
-    if (_isInReboundPhase) {
-      // Add the animating top card first (will be at bottom of z-order)
-      final topItemIndex = _itemOrder[0];
-      final topItem = widget.items[topItemIndex];
-      cards.add(_buildCard(topItem, 0));
+    // Collect item indices that are currently animating (should not be rendered in the static stack)
+    final animatingItemIndices = _activeAnimations.map((a) => a.itemIndex).toSet();
 
-      // Then add background cards on top
-      for (var i = visibleCount - 1; i >= 1; i--) {
-        final itemIndex = _itemOrder[i];
-        final item = widget.items[itemIndex];
-        cards.add(_buildCard(item, i));
-      }
-    } else {
-      // Normal order: bottom to top (background cards first, top card last)
-      for (var i = visibleCount - 1; i >= 0; i--) {
-        final itemIndex = _itemOrder[i];
-        final item = widget.items[itemIndex];
-        cards.add(_buildCard(item, i));
-      }
+    // BOTTOM LAYER: Rebounding animations (render first = behind everything)
+    for (final anim in _activeAnimations.where((a) => a.isRebounding)) {
+      cards.add(_buildAnimatingCard(anim));
+    }
+
+    // MIDDLE LAYER: Static interactive stack (excluding items that are animating)
+    for (var i = visibleCount - 1; i >= 0; i--) {
+      final itemIndex = _itemOrder[i];
+      if (animatingItemIndices.contains(itemIndex)) continue; // Skip if animating
+      final item = widget.items[itemIndex];
+      cards.add(_buildCard(item, i));
+    }
+
+    // TOP LAYER: Throwing animations (render last = in front of everything)
+    for (final anim in _activeAnimations.where((a) => !a.isRebounding)) {
+      cards.add(_buildAnimatingCard(anim));
     }
 
     return cards;
+  }
+
+  Widget _buildAnimatingCard(ActiveAnimation<T> anim) {
+    final position = anim.position.value;
+    final rotation = anim.rotation.value;
+    final scale = anim.scale?.value ?? 1.0;
+
+    Widget cardContent = Container(
+      width: widget.cardWidth,
+      height: widget.cardHeight,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: widget.enableShadows
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                  spreadRadius: 2,
+                ),
+                BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0, 4)),
+              ]
+            : null,
+      ),
+      child: ClipRRect(borderRadius: BorderRadius.circular(16), child: widget.itemBuilder(context, anim.item)),
+    );
+
+    return Transform(
+      alignment: Alignment.center,
+      transform: Matrix4.identity()
+        ..translate(position.dx, position.dy)
+        ..rotateZ(rotation)
+        ..scale(scale),
+      child: cardContent,
+    );
   }
 
   Widget _buildCard(T item, int stackPosition) {
@@ -453,10 +514,9 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     double scale = 1.0;
 
     if (isTopCard) {
-      if (_isAnimating && _positionAnimation != null) {
-        position = _positionAnimation!.value;
-        rotation = _rotationAnimation?.value ?? cardRotation;
-        scale = _scaleAnimation?.value ?? 1.0;
+      if (_isSnappingBack && _snapBackPositionAnimation != null) {
+        position = _snapBackPositionAnimation!.value;
+        rotation = _snapBackRotationAnimation?.value ?? cardRotation;
       } else {
         // Top card: uses its persistent rotation + drag rotation on top
         position = cardOffset + _dragOffset;
@@ -497,8 +557,8 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
       child: cardContent,
     );
 
-    // Only top card is draggable
-    if (isTopCard && !_isAnimating) {
+    // Only top card is draggable (and only when not snapping back)
+    if (isTopCard && !_isSnappingBack) {
       return GestureDetector(
         onPanStart: _onPanStart,
         onPanUpdate: _onPanUpdate,
