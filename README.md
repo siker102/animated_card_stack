@@ -5,7 +5,8 @@ A high-performance, interactive Flutter widget that renders a stack of cards wit
 ## Features
 
 *   **Smooth Animations**: Physics-based drag callbacks and "rebound" effects.
-*   **Fast Cycling**: Supports parallel animations - grab the next card while the previous is still animating.
+*   **Fast Cycling**: Supports seamless parallel animations - drag the next card immediately while the previous one is still flying away.
+*   **Robust Gestures**: Uses advanced state preservation (Keys) to ensure drags and taps never get lost, even during complex animations.
 *   **Controller Support**: Programmatically trigger swipes with `AnimatedCardStackController`.
 *   **Callbacks**: Listen to interactions: `onTap`, `onDoubleTap`, and `onCardChanged`.
 *   **Empty State**: Show a custom placeholder when the items list is empty.

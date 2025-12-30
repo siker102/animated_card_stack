@@ -165,6 +165,10 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
   Animation<double>? _snapBackRotationAnimation;
   bool _isSnappingBack = false;
 
+  /// Whether the top card is currently being dragged by the user.
+  /// When true, animation listeners skip setState() calls to prevent race conditions.
+  bool _isDragging = false;
+
   /// Pool of distinct rotations to ensure cards look different.
   /// Values in radians, roughly -5° to +5°.
   static const List<double> _rotationPool = [
@@ -271,6 +275,13 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     // Need at least 2 items to cycle
     if (widget.items.length < 2) return false;
 
+    // Block if already animating (prevents race conditions)
+    if (_isDragging) return false;
+
+    // Block if the top card is already animating (prevents duplicate keys)
+    final topItemIndex = _itemOrder[0];
+    if (_activeAnimations.any((a) => a.itemIndex == topItemIndex)) return false;
+
     // If snapping back, cancel it
     if (_isSnappingBack) {
       _snapBackController?.stop();
@@ -311,6 +322,9 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
       _snapBackRotationAnimation = null;
     }
 
+    // Set flag to prevent animation rebuilds during drag
+    _isDragging = true;
+
     setState(() {
       _dragOffset = Offset.zero;
     });
@@ -325,6 +339,9 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
 
   void _onPanEnd(DragEndDetails details) {
     if (_isSnappingBack) return;
+
+    // Clear flag to allow animation rebuilds
+    _isDragging = false;
 
     _dragVelocity = details.velocity;
     final dragDistance = _dragOffset.distance;
@@ -381,6 +398,10 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
   void _startCycleAnimation() {
     // Capture current visual state BEFORE modifying anything
     final topItemIndex = _itemOrder[0];
+
+    // Prevent starting animation if this card is already animating
+    if (_activeAnimations.any((a) => a.itemIndex == topItemIndex)) return;
+
     final topItem = widget.items[topItemIndex];
     final cardOffset = _getItemOffset(topItemIndex);
     final cardRotation = _getItemRotation(topItemIndex);
@@ -495,19 +516,28 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     // Add listener to check for rebound phase and cleanup on completion
     controller.addListener(() {
       final shouldBeInRebound = controller.value >= ActiveAnimation.reboundPhaseStart;
+
       if (shouldBeInRebound != activeAnimation.isRebounding) {
-        setState(() {
-          activeAnimation.isRebounding = shouldBeInRebound;
-        });
+        // Update state immediately so it's correct even if we don't rebuild yet
+        activeAnimation.isRebounding = shouldBeInRebound;
+
+        // Only trigger rebuild if NOT dragging (if dragging, next frame update will catch it)
+        if (!_isDragging) {
+          setState(() {});
+        }
       }
     });
 
     controller.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        setState(() {
-          _activeAnimations.remove(activeAnimation);
-          activeAnimation.dispose();
-        });
+        // Cleanup immediately so state doesn't get corrupted
+        _activeAnimations.remove(activeAnimation);
+        activeAnimation.dispose();
+
+        // Only trigger rebuild if NOT dragging
+        if (!_isDragging) {
+          setState(() {});
+        }
       }
     });
 
@@ -525,7 +555,8 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
       _itemOffsets[newBottomItemIndex] = _getItemOffset(newTopItemIndex);
     }
 
-    // IMMEDIATELY reset drag offset so the new top card is ready
+    // IMMEDIATELY reset drag offset so the new top card starts at rest position
+    // The animating card already captured its start position, so this is safe
     _dragOffset = Offset.zero;
 
     // Notify callback about the new top card
@@ -615,6 +646,7 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     );
 
     return Transform(
+      key: ValueKey(anim.itemIndex),
       alignment: Alignment.center,
       transform: Matrix4.identity()
         ..translateByDouble(position.dx, position.dy, 0.0, 1.0)
@@ -673,6 +705,7 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     );
 
     Widget transformedCard = Transform(
+      key: isTopCard ? null : ValueKey(itemIndex),
       alignment: Alignment.center,
       transform: Matrix4.identity()
         ..translateByDouble(position.dx, position.dy, 0.0, 1.0)
@@ -681,14 +714,22 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
       child: cardContent,
     );
 
-    // Only top card is draggable (and only when not snapping back)
+    // Only top card is interactive (when not snapping back)
+    // During active drag, animation listeners skip rebuilds to prevent conflicts
     if (isTopCard && !_isSnappingBack) {
       return GestureDetector(
+        key: ValueKey(itemIndex),
         onTap: widget.onTap != null ? () => widget.onTap!(item) : null,
         onDoubleTap: widget.onDoubleTap != null ? () => widget.onDoubleTap!(item) : null,
         onPanStart: _onPanStart,
         onPanUpdate: _onPanUpdate,
         onPanEnd: _onPanEnd,
+        onPanCancel: () {
+          if (_isDragging) {
+            _isDragging = false;
+            _snapBack();
+          }
+        },
         child: transformedCard,
       );
     }
