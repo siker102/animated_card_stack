@@ -663,10 +663,10 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
     // MIDDLE LAYER: Static interactive stack (excluding items that are animating)
     for (var i = visibleCount - 1; i >= 0; i--) {
       final itemIndex = _itemOrder[i];
-      if (animatingItemIndices.contains(itemIndex))
-        continue; // Skip if animating
-      final item = widget.items[itemIndex];
-      cards.add(_buildCard(item, i));
+      if (!animatingItemIndices.contains(itemIndex)) {
+        final item = widget.items[itemIndex];
+        cards.add(_buildCard(item, i));
+      }
     }
 
     // TOP LAYER: Throwing animations (render last = in front of everything)
