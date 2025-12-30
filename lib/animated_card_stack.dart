@@ -649,9 +649,9 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
       key: ValueKey(anim.itemIndex),
       alignment: Alignment.center,
       transform: Matrix4.identity()
-        ..translateByDouble(position.dx, position.dy, 0.0, 1.0)
+        ..translate(position.dx, position.dy)
         ..rotateZ(rotation)
-        ..scaleByDouble(scale, scale, scale, 1.0),
+        ..scale(scale),
       child: cardContent,
     );
   }
@@ -708,9 +708,9 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
       key: isTopCard ? null : ValueKey(itemIndex),
       alignment: Alignment.center,
       transform: Matrix4.identity()
-        ..translateByDouble(position.dx, position.dy, 0.0, 1.0)
+        ..translate(position.dx, position.dy)
         ..rotateZ(rotation)
-        ..scaleByDouble(scale, scale, scale, 1.0),
+        ..scale(scale),
       child: cardContent,
     );
 
