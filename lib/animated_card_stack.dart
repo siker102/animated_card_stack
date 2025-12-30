@@ -1,7 +1,5 @@
 import 'dart:math';
 
-import 'package:vector_math/vector_math_64.dart' show Vector3;
-
 import 'package:flutter/material.dart';
 
 /// Controller for programmatically controlling an [AnimatedCardStack].
@@ -651,9 +649,11 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
       key: ValueKey(anim.itemIndex),
       alignment: Alignment.center,
       transform: Matrix4.identity()
-        ..translate(Vector3(position.dx, position.dy, 0.0))
+        // ignore: deprecated_member_use
+        ..translate(position.dx, position.dy)
         ..rotateZ(rotation)
-        ..scale(Vector3(scale, scale, scale)),
+        // ignore: deprecated_member_use
+        ..scale(scale),
       child: cardContent,
     );
   }
@@ -710,9 +710,11 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
       key: isTopCard ? null : ValueKey(itemIndex),
       alignment: Alignment.center,
       transform: Matrix4.identity()
-        ..translate(Vector3(position.dx, position.dy, 0.0))
+        // ignore: deprecated_member_use
+        ..translate(position.dx, position.dy)
         ..rotateZ(rotation)
-        ..scale(Vector3(scale, scale, scale)),
+        // ignore: deprecated_member_use
+        ..scale(scale),
       child: cardContent,
     );
 

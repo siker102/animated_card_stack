@@ -1,4 +1,4 @@
-## 0.1.1
+## 0.1.2
 
 * Fix deprecated `translate` and `scale` method usage to improve pub.dev score.
 
