@@ -72,6 +72,9 @@ class AnimatedCardStack<T> extends StatefulWidget {
     required this.items,
     required this.itemBuilder,
     this.controller,
+    this.onTap,
+    this.onCardChanged,
+    this.placeholderBuilder,
     this.dragThreshold = 100.0,
     this.animationDuration = const Duration(milliseconds: 400),
     this.enableShadows = true,
@@ -83,6 +86,21 @@ class AnimatedCardStack<T> extends StatefulWidget {
 
   /// Optional controller for programmatic control.
   final AnimatedCardStackController? controller;
+
+  /// Called when the top card is tapped.
+  ///
+  /// The callback receives the item data of the tapped card.
+  final void Function(T item)? onTap;
+
+  /// Called when the top card changes after a swipe animation starts.
+  ///
+  /// The callback receives the index and item data of the new top card.
+  final void Function(int index, T item)? onCardChanged;
+
+  /// Builder for a placeholder widget shown when the items list is empty.
+  ///
+  /// If null, an empty [SizedBox] is shown when items is empty.
+  final WidgetBuilder? placeholderBuilder;
 
   /// The list of data objects to display.
   final List<T> items;
@@ -109,7 +127,7 @@ class AnimatedCardStack<T> extends StatefulWidget {
   final double cardHeight;
 
   /// Scale to shrink to during rebound animation (0.0 to 1.0).
-  /// Smaller values hide the card edges when it slides behind the stack.
+  /// Smaller values hide the card edges when it slides behind the stack. Usually 0.7 is enough to hide the edges before the card vanishes.
   final double reboundScale;
 
   @override
@@ -486,6 +504,11 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     // IMMEDIATELY reset drag offset so the new top card is ready
     _dragOffset = Offset.zero;
 
+    // Notify callback about the new top card
+    final newTopItemIndex = _itemOrder[0];
+    final newTopItem = widget.items[newTopItemIndex];
+    widget.onCardChanged?.call(newTopItemIndex, newTopItem);
+
     // Add to active animations and start
     _activeAnimations.add(activeAnimation);
     controller.forward(from: 0);
@@ -496,7 +519,7 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
   @override
   Widget build(BuildContext context) {
     if (widget.items.isEmpty) {
-      return const SizedBox.shrink();
+      return widget.placeholderBuilder?.call(context) ?? const SizedBox.shrink();
     }
 
     return SizedBox(
@@ -637,6 +660,7 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     // Only top card is draggable (and only when not snapping back)
     if (isTopCard && !_isSnappingBack) {
       return GestureDetector(
+        onTap: widget.onTap != null ? () => widget.onTap!(item) : null,
         onPanStart: _onPanStart,
         onPanUpdate: _onPanUpdate,
         onPanEnd: _onPanEnd,

@@ -120,6 +120,20 @@ class _CardStackDemoState extends State<CardStackDemo> {
               cardWidth: 280,
               cardHeight: 380,
               dragThreshold: 80,
+              onTap: (card) {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: Text(card.title),
+                    content: Text('You tapped ${card.title} (Card #${card.index})'),
+                    actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))],
+                  ),
+                );
+              },
+              onCardChanged: (index, card) {
+                // You could update state, log analytics, etc.
+                debugPrint('New top card: ${card.title} at index $index');
+              },
               itemBuilder: (context, card) => _buildCard(card),
             ),
             const SizedBox(height: 24),
