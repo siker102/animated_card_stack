@@ -8,7 +8,7 @@ Add this package to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  animated_card_stack: ^0.1.0
+  animated_card_stack: ^0.1.4
 ```
 
 ## Usage

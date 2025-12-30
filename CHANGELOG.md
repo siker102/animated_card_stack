@@ -1,3 +1,7 @@
+## 0.1.4
+
+* Update `README.md` and version for improved package score.
+
 ## 0.1.3
 
 * Fix code formatting to comply with Dart formatter guidelines.
