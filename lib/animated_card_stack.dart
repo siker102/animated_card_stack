@@ -73,6 +73,7 @@ class AnimatedCardStack<T> extends StatefulWidget {
     required this.itemBuilder,
     this.controller,
     this.onTap,
+    this.onDoubleTap,
     this.onCardChanged,
     this.placeholderBuilder,
     this.dragThreshold = 100.0,
@@ -91,6 +92,11 @@ class AnimatedCardStack<T> extends StatefulWidget {
   ///
   /// The callback receives the item data of the tapped card.
   final void Function(T item)? onTap;
+
+  /// Called when the top card is double-tapped.
+  ///
+  /// The callback receives the item data of the tapped card.
+  final void Function(T item)? onDoubleTap;
 
   /// Called when the top card changes after a swipe animation starts.
   ///
@@ -661,6 +667,7 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     if (isTopCard && !_isSnappingBack) {
       return GestureDetector(
         onTap: widget.onTap != null ? () => widget.onTap!(item) : null,
+        onDoubleTap: widget.onDoubleTap != null ? () => widget.onDoubleTap!(item) : null,
         onPanStart: _onPanStart,
         onPanUpdate: _onPanUpdate,
         onPanEnd: _onPanEnd,

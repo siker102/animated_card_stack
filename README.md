@@ -5,9 +5,12 @@ A high-performance, interactive Flutter widget that renders a stack of cards wit
 ## Features
 
 *   **Smooth Animations**: Physics-based drag callbacks and "rebound" effects.
-*   **Customizable**: Control drag thresholds, animation duration, and 3D shadow intensity.
+*   **Fast Cycling**: Supports parallel animations - grab the next card while the previous is still animating.
+*   **Controller Support**: Programmatically trigger swipes with `AnimatedCardStackController`.
+*   **Callbacks**: Listen to interactions: `onTap`, `onDoubleTap`, and `onCardChanged`.
+*   **Empty State**: Show a custom placeholder when the items list is empty.
+*   **Customizable**: Control drag thresholds, animation duration, visible card count, and 3D shadow intensity.
 *   **Performance Focused**: Efficient builder pattern for rendering only visible cards.
-*   **Fun UX**: Cards that fly off and shuffle to the bottom with momentum.
 
 ## Getting Started
 
@@ -15,7 +18,7 @@ A high-performance, interactive Flutter widget that renders a stack of cards wit
 
 To keep the repository clean and platform-agnostic, we **do not commit** platform-specific build folders (`android/`, `ios/`, `macos/`, `linux/`, `windows/`, `web/`) to version control.
 
-**If you are cloning this repository for the first time on a new machine:**
+**If you are cloning this repository for the first time:**
 
 1.  Clone the repository.
 2.  Open your terminal in the project root.
@@ -27,7 +30,7 @@ To keep the repository clean and platform-agnostic, we **do not commit** platfor
 
 ## Usage
 
-Using the `AnimatedCardStack` is simple. Just provide a list of items and a builder:
+### Basic Usage
 
 ```dart
 AnimatedCardStack<String>(
@@ -37,16 +40,83 @@ AnimatedCardStack<String>(
   itemBuilder: (context, item) {
     return Container(
       color: Colors.white,
-      child: Center(
-        child: Text(item),
-      ),
+      child: Center(child: Text(item)),
     );
   },
 )
 ```
 
-## Upcoming Features
+### With Controller (Programmatic Swipe)
 
-*   **Controller Support**: Programmatically trigger swipes (e.g., "Next" button).
-*   **Callbacks**: Listen to index changes and card interactions.
-*   **Empty State**: Custom builder support for when the stack is empty.
+```dart
+final controller = AnimatedCardStackController();
+
+AnimatedCardStack<MyData>(
+  items: myItems,
+  controller: controller,
+  itemBuilder: (context, item) => MyCardWidget(item),
+)
+
+// Trigger a swipe programmatically
+controller.swipeNext();              // Random direction
+controller.swipeNext(direction: Offset(1, 0));  // Swipe right
+```
+
+### With Callbacks (Like Instagram)
+
+```dart
+AnimatedCardStack<CardData>(
+  items: myCards,
+  onTap: (card) {
+    // Single tap action
+    showDialog(...);
+  },
+  onDoubleTap: (card) {
+    // Like functionality
+    setState(() => card.isLiked = !card.isLiked);
+  },
+  onCardChanged: (index, card) {
+    print('Now showing: ${card.title}');
+  },
+  itemBuilder: (context, card) => MyCardWidget(card),
+)
+```
+
+### With Empty State Placeholder
+
+```dart
+AnimatedCardStack<CardData>(
+  items: myCards,  // Could be empty
+  placeholderBuilder: (context) => Center(
+    child: Text('No cards available'),
+  ),
+  itemBuilder: (context, card) => MyCardWidget(card),
+)
+```
+
+## API Reference
+
+### AnimatedCardStack Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `items` | `List<T>` | required | The data source |
+| `itemBuilder` | `Widget Function(BuildContext, T)` | required | Builder for card content |
+| `controller` | `AnimatedCardStackController?` | null | Optional programmatic control |
+| `onTap` | `void Function(T)?` | null | Called when top card is tapped |
+| `onDoubleTap` | `void Function(T)?` | null | Called when top card is double-tapped |
+| `onCardChanged` | `void Function(int, T)?` | null | Called when top card changes |
+| `placeholderBuilder` | `WidgetBuilder?` | null | Shown when items is empty |
+| `dragThreshold` | `double` | 100.0 | Distance to trigger cycle |
+| `animationDuration` | `Duration` | 400ms | Base animation duration |
+| `enableShadows` | `bool` | true | Toggle 3D shadow effects |
+| `visibleCardCount` | `int` | 3 | Cards visible in stack |
+| `cardWidth` | `double` | 300.0 | Card width |
+| `cardHeight` | `double` | 400.0 | Card height |
+| `reboundScale` | `double` | 0.7 | Scale during rebound |
+
+### AnimatedCardStackController Methods
+
+| Method | Description |
+|--------|-------------|
+| `swipeNext({Offset? direction})` | Triggers a swipe. Random direction if not specified. Returns `false` if < 2 items. |

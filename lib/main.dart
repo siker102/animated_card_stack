@@ -33,6 +33,14 @@ class CardStackDemo extends StatefulWidget {
 class _CardStackDemoState extends State<CardStackDemo> {
   bool _enableShadows = true;
   final AnimatedCardStackController _controller = AnimatedCardStackController();
+  final Set<int> _likedCards = {};
+  late CardData _currentTopCard;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentTopCard = _cards[0];
+  }
 
   // Colorful gradient data for demo cards
   final List<CardData> _cards = [
@@ -133,8 +141,27 @@ class _CardStackDemoState extends State<CardStackDemo> {
               onCardChanged: (index, card) {
                 // You could update state, log analytics, etc.
                 debugPrint('New top card: ${card.title} at index $index');
+                setState(() {
+                  _currentTopCard = card;
+                });
+              },
+              onDoubleTap: (card) {
+                setState(() {
+                  if (_likedCards.contains(card.index)) {
+                    _likedCards.remove(card.index);
+                  } else {
+                    _likedCards.add(card.index);
+                  }
+                });
               },
               itemBuilder: (context, card) => _buildCard(card),
+            ),
+            const SizedBox(height: 24),
+            // Like Heart Icon
+            Icon(
+              _likedCards.contains(_currentTopCard.index) ? Icons.favorite : Icons.favorite_border,
+              color: _likedCards.contains(_currentTopCard.index) ? Colors.red : Colors.white,
+              size: 48,
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
