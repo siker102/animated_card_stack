@@ -44,3 +44,9 @@ AnimatedCardStack<String>(
   },
 )
 ```
+
+## Upcoming Features
+
+*   **Controller Support**: Programmatically trigger swipes (e.g., "Next" button).
+*   **Callbacks**: Listen to index changes and card interactions.
+*   **Empty State**: Custom builder support for when the stack is empty.
