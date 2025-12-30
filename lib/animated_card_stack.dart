@@ -2,6 +2,33 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+/// Controller for programmatically controlling an [AnimatedCardStack].
+///
+/// Use [swipeNext] to programmatically trigger a card swipe animation.
+class AnimatedCardStackController {
+  _AnimatedCardStackState? _state;
+
+  /// Attach this controller to the given state.
+  void _attach(_AnimatedCardStackState state) {
+    _state = state;
+  }
+
+  /// Detach this controller from its current state.
+  void _detach() {
+    _state = null;
+  }
+
+  /// Programmatically swipe the top card.
+  ///
+  /// If [direction] is provided, the card will fly out in that direction.
+  /// If [direction] is null, a random direction will be used.
+  ///
+  /// Returns true if the swipe was triggered, false if there are less than 2 items.
+  bool swipeNext({Offset? direction}) {
+    return _state?._triggerProgrammaticSwipe(direction: direction) ?? false;
+  }
+}
+
 /// Holds the state of a single "detached" card animation.
 ///
 /// When a card is thrown, it becomes an ActiveAnimation that runs independently
@@ -44,6 +71,7 @@ class AnimatedCardStack<T> extends StatefulWidget {
     super.key,
     required this.items,
     required this.itemBuilder,
+    this.controller,
     this.dragThreshold = 100.0,
     this.animationDuration = const Duration(milliseconds: 400),
     this.enableShadows = true,
@@ -52,6 +80,9 @@ class AnimatedCardStack<T> extends StatefulWidget {
     this.cardHeight = 400.0,
     this.reboundScale = 0.7,
   });
+
+  /// Optional controller for programmatic control.
+  final AnimatedCardStackController? controller;
 
   /// The list of data objects to display.
   final List<T> items;
@@ -135,10 +166,14 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     Offset(10, 2),
   ];
 
+  /// Random number generator for programmatic swipes.
+  final Random _random = Random();
+
   @override
   void initState() {
     super.initState();
     _initializeItemOrder();
+    widget.controller?._attach(this);
   }
 
   void _initializeItemOrder() {
@@ -180,10 +215,16 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     if (widget.items.length != oldWidget.items.length) {
       _initializeItemOrder();
     }
+    // Handle controller changes
+    if (widget.controller != oldWidget.controller) {
+      oldWidget.controller?._detach();
+      widget.controller?._attach(this);
+    }
   }
 
   @override
   void dispose() {
+    widget.controller?._detach();
     _snapBackController?.dispose();
     for (final anim in _activeAnimations) {
       anim.dispose();
@@ -199,6 +240,42 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
   /// Get the offset for a specific item (by item index, not stack position).
   Offset _getItemOffset(int itemIndex) {
     return _itemOffsets[itemIndex] ?? _offsetPool[0];
+  }
+
+  /// Triggered by the controller to programmatically swipe the top card.
+  bool _triggerProgrammaticSwipe({Offset? direction}) {
+    // Need at least 2 items to cycle
+    if (widget.items.length < 2) return false;
+
+    // If snapping back, cancel it
+    if (_isSnappingBack) {
+      _snapBackController?.stop();
+      _isSnappingBack = false;
+      _snapBackPositionAnimation = null;
+      _snapBackRotationAnimation = null;
+    }
+
+    // Generate random direction if not provided
+    final swipeDirection = direction ?? _generateRandomDirection();
+
+    // Simulate a drag offset and velocity for the animation
+    // Use a distance past the threshold to ensure it triggers
+    final simulatedDragOffset = swipeDirection * (widget.dragThreshold * 1.5);
+    final simulatedVelocity = Velocity(pixelsPerSecond: swipeDirection * 1200);
+
+    // Set up the simulated values and trigger the cycle animation
+    _dragOffset = simulatedDragOffset;
+    _dragVelocity = simulatedVelocity;
+    _startCycleAnimation();
+
+    return true;
+  }
+
+  /// Generate a random normalized direction vector.
+  Offset _generateRandomDirection() {
+    // Random angle in radians (0 to 2π)
+    final angle = _random.nextDouble() * 2 * pi;
+    return Offset(cos(angle), sin(angle));
   }
 
   void _onPanStart(DragStartDetails details) {

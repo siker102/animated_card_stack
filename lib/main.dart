@@ -32,6 +32,7 @@ class CardStackDemo extends StatefulWidget {
 
 class _CardStackDemoState extends State<CardStackDemo> {
   bool _enableShadows = true;
+  final AnimatedCardStackController _controller = AnimatedCardStackController();
 
   // Colorful gradient data for demo cards
   final List<CardData> _cards = [
@@ -114,15 +115,26 @@ class _CardStackDemoState extends State<CardStackDemo> {
           children: [
             AnimatedCardStack<CardData>(
               items: _cards,
+              controller: _controller,
               enableShadows: _enableShadows,
               cardWidth: 280,
               cardHeight: 380,
               dragThreshold: 80,
               itemBuilder: (context, card) => _buildCard(card),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => _controller.swipeNext(),
+              icon: const Icon(Icons.skip_next),
+              label: const Text('Next'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 16),
             Text(
-              'Swipe a card to cycle through the stack',
+              'Swipe a card or tap Next to cycle',
               style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 16),
             ),
           ],
