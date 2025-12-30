@@ -34,12 +34,12 @@ class _CardStackDemoState extends State<CardStackDemo> {
   bool _enableShadows = true;
   final AnimatedCardStackController _controller = AnimatedCardStackController();
   final Set<int> _likedCards = {};
-  late CardData _currentTopCard;
+  CardData? _currentTopCard;
 
   @override
   void initState() {
     super.initState();
-    _currentTopCard = _cards[0];
+    _currentTopCard = _cards.isNotEmpty ? _cards[0] : null;
   }
 
   // Colorful gradient data for demo cards
@@ -122,12 +122,14 @@ class _CardStackDemoState extends State<CardStackDemo> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             AnimatedCardStack<CardData>(
+              visibleCardCount: 5,
               items: _cards,
               controller: _controller,
               enableShadows: _enableShadows,
               cardWidth: 280,
               cardHeight: 380,
               dragThreshold: 80,
+              reboundScale: 1,
               onTap: (card) {
                 showDialog(
                   context: context,
@@ -140,7 +142,7 @@ class _CardStackDemoState extends State<CardStackDemo> {
               },
               onCardChanged: (index, card) {
                 // You could update state, log analytics, etc.
-                debugPrint('New top card: ${card.title} at index $index');
+                // debugPrint('New top card: ${card.title} at index $index');
                 setState(() {
                   _currentTopCard = card;
                 });
@@ -158,11 +160,12 @@ class _CardStackDemoState extends State<CardStackDemo> {
             ),
             const SizedBox(height: 24),
             // Like Heart Icon
-            Icon(
-              _likedCards.contains(_currentTopCard.index) ? Icons.favorite : Icons.favorite_border,
-              color: _likedCards.contains(_currentTopCard.index) ? Colors.red : Colors.white,
-              size: 48,
-            ),
+            if (_currentTopCard != null)
+              Icon(
+                _likedCards.contains(_currentTopCard!.index) ? Icons.favorite : Icons.favorite_border,
+                color: _likedCards.contains(_currentTopCard!.index) ? Colors.red : Colors.white,
+                size: 48,
+              ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () => _controller.swipeNext(),

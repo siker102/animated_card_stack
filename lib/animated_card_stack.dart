@@ -389,6 +389,10 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     final startPosition = cardOffset + _dragOffset;
     final startRotation = cardRotation + (_dragOffset.dx / 500).clamp(-0.15, 0.15);
 
+    // Determine if this card will be visible at its target position (back of stack)
+    final targetStackPosition = widget.items.length - 1;
+    final willBeVisibleAtBack = targetStackPosition < widget.visibleCardCount;
+
     // Create a new animation controller for this card
     final controller = AnimationController(vsync: this, duration: widget.animationDuration * 2);
 
@@ -453,15 +457,29 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
       ),
     ]).animate(controller);
 
-    // Scale animation: stay at 1.0 during throw/exit, shrink during rebound
-    final scaleAnimation = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.0), weight: 30),
-      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.0), weight: 25),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1.0, end: widget.reboundScale).chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 45,
-      ),
-    ]).animate(controller);
+    // Scale animation: adapt based on whether card will be visible at the end
+    Animation<double> scaleAnimation;
+    if (willBeVisibleAtBack) {
+      // Card will be visible: shrink during exit, then grow back to 1.0
+      scaleAnimation = TweenSequence<double>([
+        TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.0), weight: 30),
+        TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: widget.reboundScale), weight: 25),
+        TweenSequenceItem(
+          tween: Tween<double>(begin: widget.reboundScale, end: 1.0).chain(CurveTween(curve: Curves.easeOutCubic)),
+          weight: 45,
+        ),
+      ]).animate(controller);
+    } else {
+      // Card won't be visible: shrink and stay shrunk (current behavior)
+      scaleAnimation = TweenSequence<double>([
+        TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.0), weight: 30),
+        TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.0), weight: 25),
+        TweenSequenceItem(
+          tween: Tween<double>(begin: 1.0, end: widget.reboundScale).chain(CurveTween(curve: Curves.easeInOut)),
+          weight: 45,
+        ),
+      ]).animate(controller);
+    }
 
     // Create the active animation
     final activeAnimation = ActiveAnimation<T>(
@@ -497,10 +515,10 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     final topCard = _itemOrder.removeAt(0);
     _itemOrder.add(topCard);
 
-    // The new bottom card (next to become visible) should inherit
-    // the new top card's rotation for smooth entry
+    // Only reassign rotation/offset if card will NOT be visible during rebound
+    // This prevents visual snaps when card remains visible at the back
     final visibleCount = widget.visibleCardCount.clamp(0, widget.items.length);
-    if (visibleCount > 0 && _itemOrder.length > visibleCount - 1) {
+    if (!willBeVisibleAtBack && visibleCount > 0 && _itemOrder.length > visibleCount - 1) {
       final newBottomItemIndex = _itemOrder[visibleCount - 1];
       final newTopItemIndex = _itemOrder[0];
       _itemRotations[newBottomItemIndex] = _getItemRotation(newTopItemIndex);
