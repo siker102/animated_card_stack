@@ -1,3 +1,7 @@
+## 0.1.1
+
+* Fix deprecated `translate` and `scale` method usage to improve pub.dev score.
+
 ## 0.1.0
 
 * Initial release of the `animated_card_stack` package.
