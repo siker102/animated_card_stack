@@ -45,7 +45,6 @@ app.*.map.json
 /android/app/release
 
 # User requested ignores (Keep only lib and config)
-ai_docs/
 android/
 ios/
 linux/

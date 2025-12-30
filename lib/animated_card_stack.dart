@@ -617,9 +617,9 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     return Transform(
       alignment: Alignment.center,
       transform: Matrix4.identity()
-        ..translate(position.dx, position.dy)
+        ..translateByDouble(position.dx, position.dy, 0.0, 1.0)
         ..rotateZ(rotation)
-        ..scale(scale),
+        ..scaleByDouble(scale, scale, scale, 1.0),
       child: cardContent,
     );
   }
@@ -675,9 +675,9 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     Widget transformedCard = Transform(
       alignment: Alignment.center,
       transform: Matrix4.identity()
-        ..translate(position.dx, position.dy)
+        ..translateByDouble(position.dx, position.dy, 0.0, 1.0)
         ..rotateZ(rotation)
-        ..scale(scale),
+        ..scaleByDouble(scale, scale, scale, 1.0),
       child: cardContent,
     );
 

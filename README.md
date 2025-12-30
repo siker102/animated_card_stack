@@ -12,6 +12,11 @@ A high-performance, interactive Flutter widget that renders a stack of cards wit
 *   **Customizable**: Control drag thresholds, animation duration, visible card count, and 3D shadow intensity.
 *   **Performance Focused**: Efficient builder pattern for rendering only visible cards.
 
+## Testing & CI
+This project includes a comprehensive suite of **Widget Tests** and a **GitHub Actions** CI pipeline.
+- **Tests**: Run `flutter test` to verify rendering, interactions, and callbacks.
+- **CI**: Every push to `main` triggers analysis and testing on `ubuntu-latest`.
+
 ## Getting Started
 
 ### ⚠️ Important Note for Contributors
