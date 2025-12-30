@@ -15,7 +15,10 @@ class MainApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple, brightness: Brightness.dark),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.deepPurple,
+          brightness: Brightness.dark,
+        ),
       ),
       home: const CardStackDemo(),
     );
@@ -97,7 +100,10 @@ class _CardStackDemoState extends State<CardStackDemo> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('AnimatedCardStack', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'AnimatedCardStack',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         centerTitle: true,
         actions: [
           // Shadow toggle
@@ -134,8 +140,15 @@ class _CardStackDemoState extends State<CardStackDemo> {
                   context: context,
                   builder: (context) => AlertDialog(
                     title: Text(card.title),
-                    content: Text('You tapped ${card.title} (Card #${card.index})'),
-                    actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))],
+                    content: Text(
+                      'You tapped ${card.title} (Card #${card.index})',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('OK'),
+                      ),
+                    ],
                   ),
                 );
               },
@@ -161,8 +174,12 @@ class _CardStackDemoState extends State<CardStackDemo> {
             // Like Heart Icon
             if (_currentTopCard != null)
               Icon(
-                _likedCards.contains(_currentTopCard!.index) ? Icons.favorite : Icons.favorite_border,
-                color: _likedCards.contains(_currentTopCard!.index) ? Colors.red : Colors.white,
+                _likedCards.contains(_currentTopCard!.index)
+                    ? Icons.favorite
+                    : Icons.favorite_border,
+                color: _likedCards.contains(_currentTopCard!.index)
+                    ? Colors.red
+                    : Colors.white,
                 size: 48,
               ),
             const SizedBox(height: 24),
@@ -171,14 +188,23 @@ class _CardStackDemoState extends State<CardStackDemo> {
               icon: const Icon(Icons.skip_next),
               label: const Text('Next'),
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             const SizedBox(height: 16),
             Text(
               'Swipe a card or tap Next to cycle',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 16),
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: 16,
+              ),
             ),
           ],
         ),
@@ -188,7 +214,10 @@ class _CardStackDemoState extends State<CardStackDemo> {
 
   Widget _buildCard(CardData card) {
     return Container(
-      decoration: BoxDecoration(gradient: card.gradient, borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(
+        gradient: card.gradient,
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Stack(
         children: [
           // Decorative circles
@@ -198,7 +227,10 @@ class _CardStackDemoState extends State<CardStackDemo> {
             child: Container(
               width: 120,
               height: 120,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.1)),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.1),
+              ),
             ),
           ),
           Positioned(
@@ -207,7 +239,10 @@ class _CardStackDemoState extends State<CardStackDemo> {
             child: Container(
               width: 160,
               height: 160,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.08)),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.08),
+              ),
             ),
           ),
           // Content
@@ -217,14 +252,21 @@ class _CardStackDemoState extends State<CardStackDemo> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     '#${card.index}',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
                 const Spacer(),
@@ -240,7 +282,10 @@ class _CardStackDemoState extends State<CardStackDemo> {
                 const SizedBox(height: 8),
                 Text(
                   'Drag me and release to send to back',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 14),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    fontSize: 14,
+                  ),
                 ),
               ],
             ),

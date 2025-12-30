@@ -5,13 +5,19 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('AnimatedCardStack Rendering & Config', () {
-    testWidgets('renders correct number of visible cards', (WidgetTester tester) async {
+    testWidgets('renders correct number of visible cards', (
+      WidgetTester tester,
+    ) async {
       final items = List.generate(5, (index) => 'Item $index');
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: AnimatedCardStack(items: items, visibleCardCount: 3, itemBuilder: (context, item) => Text(item)),
+            body: AnimatedCardStack(
+              items: items,
+              visibleCardCount: 3,
+              itemBuilder: (context, item) => Text(item),
+            ),
           ),
         ),
       );
@@ -24,7 +30,9 @@ void main() {
       expect(find.text('Item 3'), findsNothing);
     });
 
-    testWidgets('shows placeholder when items are empty', (WidgetTester tester) async {
+    testWidgets('shows placeholder when items are empty', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -46,7 +54,10 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: AnimatedCardStack<int>(items: items, itemBuilder: (context, item) => Text('Number $item')),
+            body: AnimatedCardStack<int>(
+              items: items,
+              itemBuilder: (context, item) => Text('Number $item'),
+            ),
           ),
         ),
       );
@@ -56,7 +67,9 @@ void main() {
   });
 
   group('AnimatedCardStack Interactions', () {
-    testWidgets('dragging past threshold triggers cycle', (WidgetTester tester) async {
+    testWidgets('dragging past threshold triggers cycle', (
+      WidgetTester tester,
+    ) async {
       final items = ['A', 'B'];
       bool cardChanged = false;
 
@@ -70,7 +83,8 @@ void main() {
                 cardChanged = true;
                 expect(item, equals('B')); // New top card should be B
               },
-              itemBuilder: (context, item) => SizedBox(width: 300, height: 400, child: Text(item)),
+              itemBuilder: (context, item) =>
+                  SizedBox(width: 300, height: 400, child: Text(item)),
             ),
           ),
         ),
@@ -93,7 +107,9 @@ void main() {
       expect(find.text('B'), findsOneWidget);
     });
 
-    testWidgets('dragging below threshold snaps back', (WidgetTester tester) async {
+    testWidgets('dragging below threshold snaps back', (
+      WidgetTester tester,
+    ) async {
       final items = ['A', 'B'];
       bool cardChanged = false;
 
@@ -104,7 +120,8 @@ void main() {
               items: items,
               dragThreshold: 200.0, // High threshold
               onCardChanged: (_, __) => cardChanged = true,
-              itemBuilder: (context, item) => SizedBox(width: 300, height: 400, child: Text(item)),
+              itemBuilder: (context, item) =>
+                  SizedBox(width: 300, height: 400, child: Text(item)),
             ),
           ),
         ),
@@ -132,7 +149,8 @@ void main() {
             body: AnimatedCardStack(
               controller: controller,
               items: items,
-              itemBuilder: (context, item) => SizedBox(width: 100, height: 100, child: Text(item)),
+              itemBuilder: (context, item) =>
+                  SizedBox(width: 100, height: 100, child: Text(item)),
             ),
           ),
         ),

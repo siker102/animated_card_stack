@@ -140,7 +140,8 @@ class AnimatedCardStack<T> extends StatefulWidget {
   State<AnimatedCardStack<T>> createState() => _AnimatedCardStackState<T>();
 }
 
-class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with TickerProviderStateMixin {
+class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
+    with TickerProviderStateMixin {
   /// Current order of item indices (first = top card).
   late List<int> _itemOrder;
 
@@ -348,7 +349,8 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     final velocityMagnitude = _dragVelocity.pixelsPerSecond.distance;
 
     // Check if threshold is met (either by distance or velocity)
-    final thresholdMet = dragDistance > widget.dragThreshold || velocityMagnitude > 800;
+    final thresholdMet =
+        dragDistance > widget.dragThreshold || velocityMagnitude > 800;
 
     if (thresholdMet && widget.items.length > 1) {
       _startCycleAnimation();
@@ -365,18 +367,28 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
 
     // Create or reuse snap-back controller
     _snapBackController?.dispose();
-    _snapBackController = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+    _snapBackController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
 
     // Current position is cardOffset + dragOffset, animate back to cardOffset
     final currentPosition = cardOffset + _dragOffset;
     _snapBackPositionAnimation = _snapBackController!.drive(
-      Tween<Offset>(begin: currentPosition, end: cardOffset).chain(CurveTween(curve: Curves.easeOutBack)),
+      Tween<Offset>(
+        begin: currentPosition,
+        end: cardOffset,
+      ).chain(CurveTween(curve: Curves.easeOutBack)),
     );
 
     // Animate rotation back to base rotation
-    final currentRotation = cardRotation + (_dragOffset.dx / 500).clamp(-0.15, 0.15);
+    final currentRotation =
+        cardRotation + (_dragOffset.dx / 500).clamp(-0.15, 0.15);
     _snapBackRotationAnimation = _snapBackController!.drive(
-      Tween<double>(begin: currentRotation, end: cardRotation).chain(CurveTween(curve: Curves.easeOutBack)),
+      Tween<double>(
+        begin: currentRotation,
+        end: cardRotation,
+      ).chain(CurveTween(curve: Curves.easeOutBack)),
     );
 
     _isSnappingBack = true;
@@ -408,24 +420,34 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
 
     // Current visual position/rotation (exactly where the user's finger left off)
     final startPosition = cardOffset + _dragOffset;
-    final startRotation = cardRotation + (_dragOffset.dx / 500).clamp(-0.15, 0.15);
+    final startRotation =
+        cardRotation + (_dragOffset.dx / 500).clamp(-0.15, 0.15);
 
     // Determine if this card will be visible at its target position (back of stack)
     final targetStackPosition = widget.items.length - 1;
     final willBeVisibleAtBack = targetStackPosition < widget.visibleCardCount;
 
     // Create a new animation controller for this card
-    final controller = AnimationController(vsync: this, duration: widget.animationDuration * 2);
+    final controller = AnimationController(
+      vsync: this,
+      duration: widget.animationDuration * 2,
+    );
 
     // Calculate throw target (continue in drag direction with momentum)
     const velocityFactor = 0.15;
     final throwTarget =
         _dragOffset +
-        Offset(_dragVelocity.pixelsPerSecond.dx * velocityFactor, _dragVelocity.pixelsPerSecond.dy * velocityFactor);
+        Offset(
+          _dragVelocity.pixelsPerSecond.dx * velocityFactor,
+          _dragVelocity.pixelsPerSecond.dy * velocityFactor,
+        );
 
     // Normalize direction for exit
     final exitDirection = _dragOffset.distance > 0
-        ? Offset(_dragOffset.dx / _dragOffset.distance, _dragOffset.dy / _dragOffset.distance)
+        ? Offset(
+            _dragOffset.dx / _dragOffset.distance,
+            _dragOffset.dy / _dragOffset.distance,
+          )
         : const Offset(1, 0);
 
     // Exit point (far off screen in drag direction)
@@ -465,11 +487,17 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
 
     final rotationAnimation = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: startRotation, end: startRotation + additionalRotation),
+        tween: Tween<double>(
+          begin: startRotation,
+          end: startRotation + additionalRotation,
+        ),
         weight: 30,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: startRotation + additionalRotation, end: cardRotation),
+        tween: Tween<double>(
+          begin: startRotation + additionalRotation,
+          end: cardRotation,
+        ),
         weight: 25,
       ),
       TweenSequenceItem(
@@ -483,20 +511,38 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     if (willBeVisibleAtBack) {
       // Card will be visible: shrink during exit, then grow back to 1.0
       scaleAnimation = TweenSequence<double>([
-        TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.0), weight: 30),
-        TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: widget.reboundScale), weight: 25),
         TweenSequenceItem(
-          tween: Tween<double>(begin: widget.reboundScale, end: 1.0).chain(CurveTween(curve: Curves.easeOutCubic)),
+          tween: Tween<double>(begin: 1.0, end: 1.0),
+          weight: 30,
+        ),
+        TweenSequenceItem(
+          tween: Tween<double>(begin: 1.0, end: widget.reboundScale),
+          weight: 25,
+        ),
+        TweenSequenceItem(
+          tween: Tween<double>(
+            begin: widget.reboundScale,
+            end: 1.0,
+          ).chain(CurveTween(curve: Curves.easeOutCubic)),
           weight: 45,
         ),
       ]).animate(controller);
     } else {
       // Card won't be visible: shrink and stay shrunk (current behavior)
       scaleAnimation = TweenSequence<double>([
-        TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.0), weight: 30),
-        TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.0), weight: 25),
         TweenSequenceItem(
-          tween: Tween<double>(begin: 1.0, end: widget.reboundScale).chain(CurveTween(curve: Curves.easeInOut)),
+          tween: Tween<double>(begin: 1.0, end: 1.0),
+          weight: 30,
+        ),
+        TweenSequenceItem(
+          tween: Tween<double>(begin: 1.0, end: 1.0),
+          weight: 25,
+        ),
+        TweenSequenceItem(
+          tween: Tween<double>(
+            begin: 1.0,
+            end: widget.reboundScale,
+          ).chain(CurveTween(curve: Curves.easeInOut)),
           weight: 45,
         ),
       ]).animate(controller);
@@ -515,7 +561,8 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
 
     // Add listener to check for rebound phase and cleanup on completion
     controller.addListener(() {
-      final shouldBeInRebound = controller.value >= ActiveAnimation.reboundPhaseStart;
+      final shouldBeInRebound =
+          controller.value >= ActiveAnimation.reboundPhaseStart;
 
       if (shouldBeInRebound != activeAnimation.isRebounding) {
         // Update state immediately so it's correct even if we don't rebuild yet
@@ -548,7 +595,9 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     // Only reassign rotation/offset if card will NOT be visible during rebound
     // This prevents visual snaps when card remains visible at the back
     final visibleCount = widget.visibleCardCount.clamp(0, widget.items.length);
-    if (!willBeVisibleAtBack && visibleCount > 0 && _itemOrder.length > visibleCount - 1) {
+    if (!willBeVisibleAtBack &&
+        visibleCount > 0 &&
+        _itemOrder.length > visibleCount - 1) {
       final newBottomItemIndex = _itemOrder[visibleCount - 1];
       final newTopItemIndex = _itemOrder[0];
       _itemRotations[newBottomItemIndex] = _getItemRotation(newTopItemIndex);
@@ -574,7 +623,8 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
   @override
   Widget build(BuildContext context) {
     if (widget.items.isEmpty) {
-      return widget.placeholderBuilder?.call(context) ?? const SizedBox.shrink();
+      return widget.placeholderBuilder?.call(context) ??
+          const SizedBox.shrink();
     }
 
     return SizedBox(
@@ -586,7 +636,11 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
           ..._activeAnimations.map((a) => a.controller),
         ]),
         builder: (context, child) {
-          return Stack(alignment: Alignment.center, clipBehavior: Clip.none, children: _buildCards());
+          return Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: _buildCards(),
+          );
         },
       ),
     );
@@ -597,7 +651,9 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     final visibleCount = min(widget.visibleCardCount, widget.items.length);
 
     // Collect item indices that are currently animating (should not be rendered in the static stack)
-    final animatingItemIndices = _activeAnimations.map((a) => a.itemIndex).toSet();
+    final animatingItemIndices = _activeAnimations
+        .map((a) => a.itemIndex)
+        .toSet();
 
     // BOTTOM LAYER: Rebounding animations (render first = behind everything)
     for (final anim in _activeAnimations.where((a) => a.isRebounding)) {
@@ -607,7 +663,8 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
     // MIDDLE LAYER: Static interactive stack (excluding items that are animating)
     for (var i = visibleCount - 1; i >= 0; i--) {
       final itemIndex = _itemOrder[i];
-      if (animatingItemIndices.contains(itemIndex)) continue; // Skip if animating
+      if (animatingItemIndices.contains(itemIndex))
+        continue; // Skip if animating
       final item = widget.items[itemIndex];
       cards.add(_buildCard(item, i));
     }
@@ -638,11 +695,18 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
                   offset: const Offset(0, 10),
                   spreadRadius: 2,
                 ),
-                BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0, 4)),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
               ]
             : null,
       ),
-      child: ClipRRect(borderRadius: BorderRadius.circular(16), child: widget.itemBuilder(context, anim.item)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: widget.itemBuilder(context, anim.item),
+      ),
     );
 
     return Transform(
@@ -699,11 +763,18 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
                   offset: const Offset(0, 10),
                   spreadRadius: 2,
                 ),
-                BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0, 4)),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
               ]
             : null,
       ),
-      child: ClipRRect(borderRadius: BorderRadius.circular(16), child: widget.itemBuilder(context, item)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: widget.itemBuilder(context, item),
+      ),
     );
 
     Widget transformedCard = Transform(
@@ -724,7 +795,9 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>> with Ticker
       return GestureDetector(
         key: ValueKey(itemIndex),
         onTap: widget.onTap != null ? () => widget.onTap!(item) : null,
-        onDoubleTap: widget.onDoubleTap != null ? () => widget.onDoubleTap!(item) : null,
+        onDoubleTap: widget.onDoubleTap != null
+            ? () => widget.onDoubleTap!(item)
+            : null,
         onPanStart: _onPanStart,
         onPanUpdate: _onPanUpdate,
         onPanEnd: _onPanEnd,
