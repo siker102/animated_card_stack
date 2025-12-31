@@ -1,6 +1,6 @@
 ## 0.1.5
 
-* Documentation updates and maintenance.
+* Performance, logging and code readability improvements. This is a large refactor that should not affect the API but improves the adherence to best practices.
 
 ## 0.1.4
 
