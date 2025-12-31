@@ -1,6 +1,20 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
+
+class _Constants {
+  static const double activeAnimationReboundStart = 0.55;
+  static const double programmaticSwipeVelocity = 1200.0;
+  static const double programmaticSwipeDistanceFactor = 1.5;
+  static const double rotationDistanceFactor = 500.0;
+  static const double maxRotation = 0.15;
+  static const double velocitySwipeThreshold = 800.0;
+  static const double throwVelocityFactor = 0.15;
+  static const double throwDistance = 500.0;
+  static const double rotationVelocityFactor = 5000.0;
+  static const double maxVelocityRotation = 0.1;
+}
 
 /// Controller for programmatically controlling an [AnimatedCardStack].
 ///
@@ -45,7 +59,8 @@ class ActiveAnimation<T> {
   bool isRebounding;
 
   /// Animation progress threshold where rebound phase begins (after throw + exit).
-  static const double reboundPhaseStart = 0.55; // 30% + 25% = 55%
+  static const double reboundPhaseStart =
+      _Constants.activeAnimationReboundStart;
 
   ActiveAnimation({
     required this.controller,
@@ -151,8 +166,10 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
   /// Per-item offsets - each card keeps its offset once visible.
   final Map<int, Offset> _itemOffsets = {};
 
+  static final Logger _logger = Logger('AnimatedCardStack');
+
   /// Current drag offset of the top card.
-  Offset _dragOffset = Offset.zero;
+  final ValueNotifier<Offset> _dragOffset = ValueNotifier(Offset.zero);
 
   /// Velocity when the drag ended.
   Velocity _dragVelocity = Velocity.zero;
@@ -294,13 +311,19 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
     // Generate random direction if not provided
     final swipeDirection = direction ?? _generateRandomDirection();
 
+    _logger.info('Programmatic swipe triggered', {'direction': swipeDirection});
+
     // Simulate a drag offset and velocity for the animation
     // Use a distance past the threshold to ensure it triggers
-    final simulatedDragOffset = swipeDirection * (widget.dragThreshold * 1.5);
-    final simulatedVelocity = Velocity(pixelsPerSecond: swipeDirection * 1200);
+    final simulatedDragOffset =
+        swipeDirection *
+        (widget.dragThreshold * _Constants.programmaticSwipeDistanceFactor);
+    final simulatedVelocity = Velocity(
+      pixelsPerSecond: swipeDirection * _Constants.programmaticSwipeVelocity,
+    );
 
     // Set up the simulated values and trigger the cycle animation
-    _dragOffset = simulatedDragOffset;
+    _dragOffset.value = simulatedDragOffset;
     _dragVelocity = simulatedVelocity;
     _startCycleAnimation();
 
@@ -327,15 +350,13 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
     _isDragging = true;
 
     setState(() {
-      _dragOffset = Offset.zero;
+      _dragOffset.value = Offset.zero;
     });
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
     if (_isSnappingBack) return;
-    setState(() {
-      _dragOffset += details.delta;
-    });
+    _dragOffset.value += details.delta;
   }
 
   void _onPanEnd(DragEndDetails details) {
@@ -345,12 +366,19 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
     _isDragging = false;
 
     _dragVelocity = details.velocity;
-    final dragDistance = _dragOffset.distance;
+    final dragDistance = _dragOffset.value.distance;
     final velocityMagnitude = _dragVelocity.pixelsPerSecond.distance;
 
     // Check if threshold is met (either by distance or velocity)
     final thresholdMet =
-        dragDistance > widget.dragThreshold || velocityMagnitude > 800;
+        dragDistance > widget.dragThreshold ||
+        velocityMagnitude > _Constants.velocitySwipeThreshold;
+
+    _logger.fine('Drag ended', {
+      'distance': dragDistance,
+      'velocity': velocityMagnitude,
+      'thresholdMet': thresholdMet,
+    });
 
     if (thresholdMet && widget.items.length > 1) {
       _startCycleAnimation();
@@ -360,6 +388,7 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
   }
 
   void _snapBack() {
+    _logger.fine('Snapping back to rest position');
     // Get the top card's actual resting position and rotation
     final topItemIndex = _itemOrder[0];
     final cardOffset = _getItemOffset(topItemIndex);
@@ -373,7 +402,7 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
     );
 
     // Current position is cardOffset + dragOffset, animate back to cardOffset
-    final currentPosition = cardOffset + _dragOffset;
+    final currentPosition = cardOffset + _dragOffset.value;
     _snapBackPositionAnimation = _snapBackController!.drive(
       Tween<Offset>(
         begin: currentPosition,
@@ -383,7 +412,11 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
 
     // Animate rotation back to base rotation
     final currentRotation =
-        cardRotation + (_dragOffset.dx / 500).clamp(-0.15, 0.15);
+        cardRotation +
+        (_dragOffset.value.dx / _Constants.rotationDistanceFactor).clamp(
+          -_Constants.maxRotation,
+          _Constants.maxRotation,
+        );
     _snapBackRotationAnimation = _snapBackController!.drive(
       Tween<double>(
         begin: currentRotation,
@@ -396,7 +429,7 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
       if (status == AnimationStatus.completed) {
         setState(() {
           _isSnappingBack = false;
-          _dragOffset = Offset.zero;
+          _dragOffset.value = Offset.zero;
           _snapBackPositionAnimation = null;
           _snapBackRotationAnimation = null;
         });
@@ -411,6 +444,8 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
     // Capture current visual state BEFORE modifying anything
     final topItemIndex = _itemOrder[0];
 
+    _logger.info('Starting cycle animation', {'itemIndex': topItemIndex});
+
     // Prevent starting animation if this card is already animating
     if (_activeAnimations.any((a) => a.itemIndex == topItemIndex)) return;
 
@@ -419,9 +454,13 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
     final cardRotation = _getItemRotation(topItemIndex);
 
     // Current visual position/rotation (exactly where the user's finger left off)
-    final startPosition = cardOffset + _dragOffset;
+    final startPosition = cardOffset + _dragOffset.value;
     final startRotation =
-        cardRotation + (_dragOffset.dx / 500).clamp(-0.15, 0.15);
+        cardRotation +
+        (_dragOffset.value.dx / _Constants.rotationDistanceFactor).clamp(
+          -_Constants.maxRotation,
+          _Constants.maxRotation,
+        );
 
     // Determine if this card will be visible at its target position (back of stack)
     final targetStackPosition = widget.items.length - 1;
@@ -434,119 +473,52 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
     );
 
     // Calculate throw target (continue in drag direction with momentum)
-    const velocityFactor = 0.15;
+    const velocityFactor = _Constants.throwVelocityFactor;
     final throwTarget =
-        _dragOffset +
+        _dragOffset.value +
         Offset(
           _dragVelocity.pixelsPerSecond.dx * velocityFactor,
           _dragVelocity.pixelsPerSecond.dy * velocityFactor,
         );
 
     // Normalize direction for exit
-    final exitDirection = _dragOffset.distance > 0
+    final exitDirection = _dragOffset.value.distance > 0
         ? Offset(
-            _dragOffset.dx / _dragOffset.distance,
-            _dragOffset.dy / _dragOffset.distance,
+            _dragOffset.value.dx / _dragOffset.value.distance,
+            _dragOffset.value.dy / _dragOffset.value.distance,
           )
         : const Offset(1, 0);
 
     // Exit point (far off screen in drag direction)
-    final exitTarget = exitDirection * 500;
+    final exitTarget = exitDirection * _Constants.throwDistance;
 
-    // Build animation sequence with cardOffset added to all points
-    final positionAnimation = TweenSequence<Offset>([
-      // Phase 1: Throw with momentum (decelerate)
-      TweenSequenceItem(
-        tween: Tween<Offset>(
-          begin: startPosition,
-          end: cardOffset + throwTarget,
-        ).chain(CurveTween(curve: Curves.decelerate)),
-        weight: 30,
-      ),
-      // Phase 2: Continue to exit point
-      TweenSequenceItem(
-        tween: Tween<Offset>(
-          begin: cardOffset + throwTarget,
-          end: cardOffset + exitTarget,
-        ).chain(CurveTween(curve: Curves.easeIn)),
-        weight: 25,
-      ),
-      // Phase 3: Rebound to back of stack (arc movement)
-      TweenSequenceItem(
-        tween: Tween<Offset>(
-          begin: cardOffset + exitTarget,
-          end: cardOffset, // Rebound back to resting offset
-        ).chain(CurveTween(curve: Curves.easeOutCubic)),
-        weight: 45,
-      ),
-    ]).animate(controller);
+    final positionAnimation = _createPositionAnimation(
+      controller,
+      startPosition,
+      cardOffset,
+      throwTarget,
+      exitTarget,
+    );
 
     // Rotation during throw - start from current visual rotation
     final velocityMagnitude = _dragVelocity.pixelsPerSecond.distance;
-    final additionalRotation = (velocityMagnitude / 5000).clamp(0.0, 0.1);
+    final additionalRotation =
+        (velocityMagnitude / _Constants.rotationVelocityFactor).clamp(
+          0.0,
+          _Constants.maxVelocityRotation,
+        );
 
-    final rotationAnimation = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween<double>(
-          begin: startRotation,
-          end: startRotation + additionalRotation,
-        ),
-        weight: 30,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(
-          begin: startRotation + additionalRotation,
-          end: cardRotation,
-        ),
-        weight: 25,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: cardRotation, end: cardRotation),
-        weight: 45,
-      ),
-    ]).animate(controller);
+    final rotationAnimation = _createRotationAnimation(
+      controller,
+      startRotation,
+      cardRotation,
+      additionalRotation,
+    );
 
-    // Scale animation: adapt based on whether card will be visible at the end
-    Animation<double> scaleAnimation;
-    if (willBeVisibleAtBack) {
-      // Card will be visible: shrink during exit, then grow back to 1.0
-      scaleAnimation = TweenSequence<double>([
-        TweenSequenceItem(
-          tween: Tween<double>(begin: 1.0, end: 1.0),
-          weight: 30,
-        ),
-        TweenSequenceItem(
-          tween: Tween<double>(begin: 1.0, end: widget.reboundScale),
-          weight: 25,
-        ),
-        TweenSequenceItem(
-          tween: Tween<double>(
-            begin: widget.reboundScale,
-            end: 1.0,
-          ).chain(CurveTween(curve: Curves.easeOutCubic)),
-          weight: 45,
-        ),
-      ]).animate(controller);
-    } else {
-      // Card won't be visible: shrink and stay shrunk (current behavior)
-      scaleAnimation = TweenSequence<double>([
-        TweenSequenceItem(
-          tween: Tween<double>(begin: 1.0, end: 1.0),
-          weight: 30,
-        ),
-        TweenSequenceItem(
-          tween: Tween<double>(begin: 1.0, end: 1.0),
-          weight: 25,
-        ),
-        TweenSequenceItem(
-          tween: Tween<double>(
-            begin: 1.0,
-            end: widget.reboundScale,
-          ).chain(CurveTween(curve: Curves.easeInOut)),
-          weight: 45,
-        ),
-      ]).animate(controller);
-    }
+    final scaleAnimation = _createScaleAnimation(
+      controller,
+      willBeVisibleAtBack,
+    );
 
     // Create the active animation
     final activeAnimation = ActiveAnimation<T>(
@@ -606,7 +578,7 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
 
     // IMMEDIATELY reset drag offset so the new top card starts at rest position
     // The animating card already captured its start position, so this is safe
-    _dragOffset = Offset.zero;
+    _dragOffset.value = Offset.zero;
 
     // Notify callback about the new top card
     final newTopItemIndex = _itemOrder[0];
@@ -618,6 +590,114 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
     controller.forward(from: 0);
 
     setState(() {}); // Trigger rebuild
+  }
+
+  Animation<Offset> _createPositionAnimation(
+    AnimationController controller,
+    Offset startPosition,
+    Offset cardOffset,
+    Offset throwTarget,
+    Offset exitTarget,
+  ) {
+    return TweenSequence<Offset>([
+      // Phase 1: Throw with momentum (decelerate)
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: startPosition,
+          end: cardOffset + throwTarget,
+        ).chain(CurveTween(curve: Curves.decelerate)),
+        weight: 30,
+      ),
+      // Phase 2: Continue to exit point
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: cardOffset + throwTarget,
+          end: cardOffset + exitTarget,
+        ).chain(CurveTween(curve: Curves.easeIn)),
+        weight: 25,
+      ),
+      // Phase 3: Rebound to back of stack (arc movement)
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: cardOffset + exitTarget,
+          end: cardOffset, // Rebound back to resting offset
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 45,
+      ),
+    ]).animate(controller);
+  }
+
+  Animation<double> _createRotationAnimation(
+    AnimationController controller,
+    double startRotation,
+    double cardRotation,
+    double additionalRotation,
+  ) {
+    return TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: startRotation,
+          end: startRotation + additionalRotation,
+        ),
+        weight: 30,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: startRotation + additionalRotation,
+          end: cardRotation,
+        ),
+        weight: 25,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: cardRotation, end: cardRotation),
+        weight: 45,
+      ),
+    ]).animate(controller);
+  }
+
+  Animation<double> _createScaleAnimation(
+    AnimationController controller,
+    bool willBeVisibleAtBack,
+  ) {
+    if (willBeVisibleAtBack) {
+      // Card will be visible: shrink during exit, then grow back to 1.0
+      return TweenSequence<double>([
+        TweenSequenceItem(
+          tween: Tween<double>(begin: 1.0, end: 1.0),
+          weight: 30,
+        ),
+        TweenSequenceItem(
+          tween: Tween<double>(begin: 1.0, end: widget.reboundScale),
+          weight: 25,
+        ),
+        TweenSequenceItem(
+          tween: Tween<double>(
+            begin: widget.reboundScale,
+            end: 1.0,
+          ).chain(CurveTween(curve: Curves.easeOutCubic)),
+          weight: 45,
+        ),
+      ]).animate(controller);
+    } else {
+      // Card won't be visible: shrink and stay shrunk (current behavior)
+      return TweenSequence<double>([
+        TweenSequenceItem(
+          tween: Tween<double>(begin: 1.0, end: 1.0),
+          weight: 30,
+        ),
+        TweenSequenceItem(
+          tween: Tween<double>(begin: 1.0, end: 1.0),
+          weight: 25,
+        ),
+        TweenSequenceItem(
+          tween: Tween<double>(
+            begin: 1.0,
+            end: widget.reboundScale,
+          ).chain(CurveTween(curve: Curves.easeInOut)),
+          weight: 45,
+        ),
+      ]).animate(controller);
+    }
   }
 
   @override
@@ -682,31 +762,11 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
     final rotation = anim.rotation.value;
     final scale = anim.scale?.value ?? 1.0;
 
-    Widget cardContent = Container(
+    Widget cardContent = _CardWrapper(
       width: widget.cardWidth,
       height: widget.cardHeight,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: widget.enableShadows
-            ? [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                  spreadRadius: 2,
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ]
-            : null,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: widget.itemBuilder(context, anim.item),
-      ),
+      enableShadows: widget.enableShadows,
+      child: widget.itemBuilder(context, anim.item),
     );
 
     return Transform(
@@ -730,67 +790,15 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
     final cardRotation = _getItemRotation(itemIndex);
     final cardOffset = _getItemOffset(itemIndex);
 
-    // Determine position, rotation, and scale
-    Offset position;
-    double rotation;
-    double scale = 1.0;
-
-    if (isTopCard) {
-      if (_isSnappingBack && _snapBackPositionAnimation != null) {
-        position = _snapBackPositionAnimation!.value;
-        rotation = _snapBackRotationAnimation?.value ?? cardRotation;
-      } else {
-        // Top card: uses its persistent rotation + drag rotation on top
-        position = cardOffset + _dragOffset;
-        rotation = cardRotation + (_dragOffset.dx / 500).clamp(-0.15, 0.15);
-      }
-    } else {
-      // Background cards: use their persistent rotation/offset
-      position = cardOffset;
-      rotation = cardRotation;
-    }
-
-    Widget cardContent = Container(
+    Widget cardContent = _CardWrapper(
       width: widget.cardWidth,
       height: widget.cardHeight,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: widget.enableShadows
-            ? [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                  spreadRadius: 2,
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ]
-            : null,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: widget.itemBuilder(context, item),
-      ),
+      enableShadows: widget.enableShadows,
+      child: widget.itemBuilder(context, item),
     );
 
-    Widget transformedCard = Transform(
-      key: isTopCard ? null : ValueKey(itemIndex),
-      alignment: Alignment.center,
-      transform: Matrix4.identity()
-        // ignore: deprecated_member_use
-        ..translate(position.dx, position.dy)
-        ..rotateZ(rotation)
-        // ignore: deprecated_member_use
-        ..scale(scale),
-      child: cardContent,
-    );
-
-    // Only top card is interactive (when not snapping back)
-    // During active drag, animation listeners skip rebuilds to prevent conflicts
+    // If top card and actively dragging (or idle), listen to drag offset
+    // Note: If snapping back, we let the standard animation logic handle it
     if (isTopCard && !_isSnappingBack) {
       return GestureDetector(
         key: ValueKey(itemIndex),
@@ -807,10 +815,106 @@ class _AnimatedCardStackState<T> extends State<AnimatedCardStack<T>>
             _snapBack();
           }
         },
-        child: transformedCard,
+        child: ValueListenableBuilder<Offset>(
+          valueListenable: _dragOffset,
+          builder: (context, dragOffset, child) {
+            final position = cardOffset + dragOffset;
+            final rotation =
+                cardRotation +
+                (dragOffset.dx / _Constants.rotationDistanceFactor).clamp(
+                  -_Constants.maxRotation,
+                  _Constants.maxRotation,
+                );
+
+            return Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.identity()
+                // ignore: deprecated_member_use
+                ..translate(position.dx, position.dy)
+                ..rotateZ(rotation),
+              child: child,
+            );
+          },
+          child: cardContent,
+        ),
       );
     }
 
-    return transformedCard;
+    // Determine position, rotation, and scale for non-interactive state
+    Offset position;
+    double rotation;
+    double scale = 1.0;
+
+    if (isTopCard) {
+      if (_isSnappingBack && _snapBackPositionAnimation != null) {
+        position = _snapBackPositionAnimation!.value;
+        rotation = _snapBackRotationAnimation?.value ?? cardRotation;
+      } else {
+        // Fallback to static position (at zero drag offset)
+        position = cardOffset;
+        rotation = cardRotation;
+      }
+    } else {
+      // Background cards: use their persistent rotation/offset
+      position = cardOffset;
+      rotation = cardRotation;
+    }
+
+    return Transform(
+      key: isTopCard ? null : ValueKey(itemIndex),
+      alignment: Alignment.center,
+      transform: Matrix4.identity()
+        // ignore: deprecated_member_use
+        ..translate(position.dx, position.dy)
+        ..rotateZ(rotation)
+        // ignore: deprecated_member_use
+        ..scale(scale),
+      child: cardContent,
+    );
+  }
+}
+
+class _CardWrapper extends StatelessWidget {
+  final Widget child;
+  final bool enableShadows;
+  final double width;
+  final double height;
+  static const double _borderRadius = 16.0;
+
+  const _CardWrapper({
+    required this.child,
+    required this.enableShadows,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(_borderRadius),
+        boxShadow: enableShadows
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                  spreadRadius: 2,
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(_borderRadius),
+        child: child,
+      ),
+    );
   }
 }
